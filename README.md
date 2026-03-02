@@ -1,22 +1,8 @@
 # phosphor
 
-A real-time VFD (Vacuum Fluorescent Display) audio analyzer for your terminal. Captures your Mac's system audio and renders a glowing spectrum analyzer alongside VU, Peak, RMS, and LUFS meters — all in the style of vintage hi-fi equipment displays.
+A real-time terminal audio analyzer. Captures your Mac's system audio and renders a glowing spectrum analyzer alongside VU, Peak, RMS, and LUFS meters in a vintage hi-fi style.
 
-![VFD screenshot](docs/images/setup-2026-03-02-140702.png)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  ▁▁▂▃▄▅▆▇█▇▆▅▄▅▆▇███▇▆▅▄▃▄▅▆▇▆▅▄▃▂▃▄▅▄▃▂▁▂▃▂▁▁▁▂▃▂▁▁▁▁▁▁▁▁▁▁  │
-│  ████████████████████████████████████████████████████████████  │
-│  ░░░▁▂▄▆███████████████████████▆▄▂▁░░░░░░░░░░░░░░░░░░░░░░░░░  │
-├──────────────┬──────────────┬──────────────┬────────────────────┤
-│  VU          │  PEAK        │  RMS         │  LUFS              │
-│  ■■■■■□□□□□  │  L ████░░░  │  ████|░░░░░  │  M: -14.2          │
-│  ■■■■■■□□□□  │  R ██░░░░░  │  ██░░|░░░░░  │  ST: -15.8         │
-│              │              │              │  I: -16.1          │
-│              │              │              │  ▁▂▃▄▃▂▁▂▃▄▅▄▃▂▁  │
-└──────────────┴──────────────┴──────────────┴────────────────────┘
-```
+![phosphor screenshot](docs/images/setup-2026-03-02-140702.png)
 
 ## Requirements
 
@@ -62,7 +48,7 @@ brew install blackhole-2ch
 
 **2. Create a Multi-Output Device in Audio MIDI Setup**
 
-This avoids losing speaker output while letting VFD capture system audio.
+This avoids losing speaker output while letting phosphor capture system audio.
 
 1. Open **Audio MIDI Setup** (Applications -> Utilities)
 2. Click **+** -> **Create Multi-Output Device**
@@ -71,7 +57,7 @@ This avoids losing speaker output while letting VFD capture system audio.
    - **BlackHole 2ch**
 4. Set the physical output as the **Master Device**
 5. Enable **Drift Correction** on **BlackHole 2ch**
-6. Rename it (for example `VFD Multi-Output`)
+6. Rename it (for example `phosphor Multi-Output`)
 
 **3. Match sample rates**
 
@@ -84,7 +70,7 @@ Mismatched rates often cause unstable meters and distorted levels.
 
 **4. Set macOS output**
 
-System Settings -> Sound -> Output -> select your `VFD Multi-Output` device.
+System Settings -> Sound -> Output -> select your `phosphor Multi-Output` device.
 
 **5. Verify capture device name**
 
@@ -107,13 +93,13 @@ phosphor
 
 ### Troubleshooting
 
-- No app audio while VFD is running:
+- No app audio while phosphor is running:
   - Recheck macOS output is the Multi-Output device, not BlackHole alone.
 - Meters pinned/saturated:
   - Confirm sample rates are matched and app/device volume is not clipping.
 - Wrong capture source:
   - Run `phosphor --list-devices` and set `--device` explicitly.
-- Silence in VFD:
+- Silence in phosphor:
   - In Audio MIDI Setup, verify BlackHole is included in Multi-Output and enabled.
 
 ## Usage
@@ -188,7 +174,7 @@ Press `q` to quit.
 
 | Preset  | Look                                      |
 |---------|-------------------------------------------|
-| `green` | Classic Futaba/Noritake VFD phosphor |
+| `green` | Classic Futaba/Noritake phosphor style |
 | `amber` | Warm vintage hi-fi receiver               |
 | `blue`  | Modern Sony/Pioneer equipment             |
 | `white` | High-brightness neutral                   |
@@ -253,7 +239,7 @@ BlackHole (system audio) → sounddevice → ring buffer
                                               ↓
                                        numpy FFT + RMS/Peak/LUFS math
                                               ↓
-                                       curses per-cell VFD rendering
+                                       curses per-cell phosphor rendering
 ```
 
 Audio is captured via BlackHole, processed with a Hann-windowed FFT for the spectrum and running averages for the meters, then rendered character-by-character in the terminal using curses with per-cell color control to simulate phosphor glow.
