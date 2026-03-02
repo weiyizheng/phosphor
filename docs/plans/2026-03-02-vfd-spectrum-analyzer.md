@@ -57,7 +57,7 @@ vfd/
 - Create: `vfd/src/vfd/__init__.py`
 - Create: `vfd/src/vfd/__main__.py`
 
-**Step 1: Create project directory and pyproject.toml**
+**Step 1: Create project directory, pyproject.toml, and .gitignore**
 
 ```bash
 mkdir -p vfd/src/vfd/meters vfd/tests/meters
@@ -81,11 +81,39 @@ dependencies = [
     "click>=8.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+]
+
 [project.scripts]
 vfd = "vfd.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vfd"]
+```
+
+`vfd/.gitignore`:
+```
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+*.DS_Store
+```
+
+`vfd/src/vfd/meters/__init__.py`:
+```python
+# meters sub-package — one module per meter type
+```
+
+`vfd/tests/meters/__init__.py`:
+```python
 ```
 
 **Step 2: Create entry point**
@@ -1393,20 +1421,390 @@ python -m pytest tests/meters/ -v
 
 **Step 3: Implement all four meters**
 
-Each meter follows the same pattern — dispatch to a `_render_<style>` method.
-See design doc for visual descriptions. Implement minimal versions that render
-correct characters without crashing; visual polish is iterative.
+`vfd/src/vfd/meters/vu.py`:
+```python
+import curses
 
-`vfd/src/vfd/meters/vu.py` — implement `VUMeter` with `segmented`, `bar`, `needle` styles
-`vfd/src/vfd/meters/peak.py` — implement `PeakMeter` with `vertical`, `horizontal`, `ppm` styles
-`vfd/src/vfd/meters/rms.py` — implement `RMSMeter` with `dual`, `bar`, `segmented` styles
-`vfd/src/vfd/meters/lufs.py` — implement `LUFSMeter` with `graph`, `target`, `numeric` styles
+DECAY_RATE = 2.0
+SPARKLINE = " ▁▂▃▄▅▆▇█"
 
-Key implementation notes:
-- VU needle: compute position as `int((db + 20) / 23 * cols)` for -20dB to +3dB range
-- LUFS graph: scroll `history` left by one each frame, plot as sparkline using `▁▂▃▄▅▆▇█`
-- PPM scale: map -36dB to +6dB across 7 segments, light up filled ones
-- All meters: wrap `win.addstr` calls in `try/except curses.error` to handle resize events
+
+class VUMeter:
+    """VU meter — shows average loudness with ballistic decay."""
+
+    def __init__(self, style: str = "segmented"):
+        self._style = style
+        self._level = -60.0  # current displayed level (decays toward target)
+
+    def render(self, win, rms_db: float, palette):
+        # Ballistic: rise fast, fall slowly
+        if rms_db > self._level:
+            self._level = rms_db
+        else:
+            self._level = max(rms_db, self._level - DECAY_RATE)
+
+        dispatch = {
+            "segmented": self._render_segmented,
+            "bar":       self._render_bar,
+            "needle":    self._render_needle,
+        }
+        dispatch.get(self._style, self._render_segmented)(win, self._level, palette)
+
+    def _render_segmented(self, win, db: float, palette):
+        rows, cols = win.getmaxyx()
+        label = "VU"
+        n_segs = cols - 4
+        filled = int(max(0.0, (db + 60) / 63) * n_segs)
+        filled = min(filled, n_segs)
+        for row in range(max(1, rows - 3), rows - 1):
+            try:
+                win.addstr(row, 0, label + " ", palette.dim)
+                for i in range(n_segs):
+                    attr = palette.bright if i < filled else palette.bg
+                    char = "■" if i < filled else "□"
+                    win.addstr(row, 4 + i, char, attr)
+            except curses.error:
+                pass
+        # dB label
+        try:
+            win.addstr(rows - 1, 0, f"{db:>+6.1f}dB", palette.mid)
+        except curses.error:
+            pass
+
+    def _render_bar(self, win, db: float, palette):
+        rows, cols = win.getmaxyx()
+        bar_cols = cols - 10
+        filled = int(max(0.0, (db + 60) / 63) * bar_cols)
+        filled = min(filled, bar_cols)
+        mid_row = rows // 2
+        try:
+            win.addstr(mid_row - 1, 0, "VU", palette.dim)
+            win.addstr(mid_row, 0, "  ")
+            win.addstr(mid_row, 2, "▐", palette.dim)
+            for i in range(bar_cols):
+                attr = palette.bright if i >= bar_cols - 2 and i < filled else \
+                       palette.mid if i >= bar_cols // 2 and i < filled else \
+                       palette.dim if i < filled else palette.bg
+                win.addstr(mid_row, 3 + i, "█" if i < filled else "░", attr)
+            win.addstr(mid_row, 3 + bar_cols, "▌", palette.dim)
+            win.addstr(mid_row + 1, 0, f"{db:>+6.1f}dB", palette.mid)
+        except curses.error:
+            pass
+
+    def _render_needle(self, win, db: float, palette):
+        """ASCII arc needle sweep. Range: -20dB to +3dB."""
+        rows, cols = win.getmaxyx()
+        db_min, db_max = -20.0, 3.0
+        pos = int((db - db_min) / (db_max - db_min) * (cols - 2))
+        pos = max(0, min(pos, cols - 2))
+        scale = "-20    -10     -7     -5    -3    0   +3"
+        try:
+            win.addstr(0, 0, "VU NEEDLE", palette.dim)
+            # Scale line
+            scale_row = rows - 3
+            win.addstr(scale_row, 0, scale[:cols - 1], palette.dim)
+            # Tick marks
+            win.addstr(scale_row + 1, 0, "|" + " " * (cols - 3) + "|", palette.dim)
+            # Needle
+            needle_line = " " * pos + "↑" + " " * max(0, cols - pos - 2)
+            win.addstr(scale_row + 2, 0, needle_line[:cols - 1], palette.bright)
+        except curses.error:
+            pass
+```
+
+`vfd/src/vfd/meters/peak.py`:
+```python
+import curses
+
+PEAK_HOLD_FRAMES = 60
+DECAY_RATE = 1.5
+
+
+class PeakMeter:
+    """Peak meter — instantaneous highest sample with optional hold."""
+
+    def __init__(self, style: str = "vertical", peak_hold: bool = True):
+        self._style = style
+        self._peak_hold = peak_hold
+        self._held_peak = -90.0
+        self._hold_timer = 0
+
+    def render(self, win, peak_db: float, palette):
+        if self._peak_hold:
+            if peak_db >= self._held_peak:
+                self._held_peak = peak_db
+                self._hold_timer = PEAK_HOLD_FRAMES
+            elif self._hold_timer > 0:
+                self._hold_timer -= 1
+            else:
+                self._held_peak = max(self._held_peak - DECAY_RATE, peak_db)
+
+        dispatch = {
+            "vertical":   self._render_vertical,
+            "horizontal": self._render_horizontal,
+            "ppm":        self._render_ppm,
+        }
+        dispatch.get(self._style, self._render_vertical)(win, peak_db, palette)
+
+    def _render_vertical(self, win, db: float, palette):
+        rows, cols = win.getmaxyx()
+        db_min, db_max = -60.0, 0.0
+        bar_rows = rows - 2
+        filled = int((db - db_min) / (db_max - db_min) * bar_rows)
+        filled = max(0, min(filled, bar_rows))
+        hold_row = bar_rows - int((self._held_peak - db_min) / (db_max - db_min) * bar_rows)
+        hold_row = max(1, min(hold_row, bar_rows))
+
+        half = max(1, cols // 2 - 1)
+        try:
+            win.addstr(0, 0, "PEAK", palette.dim)
+        except curses.error:
+            pass
+
+        for ch_idx, x_off in enumerate([1, half + 2]):
+            for row in range(1, bar_rows + 1):
+                bar_row = bar_rows - row + 1
+                y = row
+                if y >= rows:
+                    break
+                if bar_row <= filled:
+                    attr = palette.bright if bar_row >= filled - 1 else palette.mid
+                    char = "█"
+                else:
+                    attr = palette.bg
+                    char = "░"
+                try:
+                    win.addstr(y, x_off, char, attr)
+                    if self._peak_hold and y == hold_row:
+                        win.addstr(y, x_off, "─", palette.peak)
+                except curses.error:
+                    pass
+        try:
+            win.addstr(rows - 1, 0, f"{db:>+5.1f}", palette.mid)
+        except curses.error:
+            pass
+
+    def _render_horizontal(self, win, db: float, palette):
+        rows, cols = win.getmaxyx()
+        db_min, db_max = -60.0, 0.0
+        bar_cols = cols - 10
+        filled = int((db - db_min) / (db_max - db_min) * bar_cols)
+        filled = max(0, min(filled, bar_cols))
+        hold_col = int((self._held_peak - db_min) / (db_max - db_min) * bar_cols)
+        hold_col = max(0, min(hold_col, bar_cols - 1))
+        try:
+            win.addstr(0, 0, "PEAK", palette.dim)
+            for label, y in [("L", rows // 2 - 1), ("R", rows // 2)]:
+                win.addstr(y, 0, f"{label} ▐", palette.dim)
+                for i in range(bar_cols):
+                    attr = palette.bright if i >= bar_cols - 3 and i < filled else \
+                           palette.mid if i < filled else palette.bg
+                    char = "█" if i < filled else "░"
+                    win.addstr(y, 4 + i, char, attr)
+                if self._peak_hold:
+                    win.addstr(y, 4 + hold_col, "▌", palette.peak)
+                win.addstr(y, 4 + bar_cols, "▌", palette.dim)
+        except curses.error:
+            pass
+
+    def _render_ppm(self, win, db: float, palette):
+        """BBC/EBU PPM — 7 segments from -36dB to +6dB."""
+        rows, cols = win.getmaxyx()
+        ppm_scale = [(-36, "1"), (-26, "2"), (-18, "3"), (-12, "4"),
+                     (-6, "5"), (0, "6"), (6, "+")]
+        mid = rows // 2
+        seg_width = max(1, (cols - 2) // len(ppm_scale))
+        try:
+            win.addstr(0, 0, "PPM", palette.dim)
+            for i, (threshold, label) in enumerate(ppm_scale):
+                x = 1 + i * seg_width
+                lit = db >= threshold
+                attr = palette.bright if lit and threshold >= 0 else \
+                       palette.mid if lit else palette.bg
+                char = "■" if lit else "□"
+                win.addstr(mid, x, char * (seg_width - 1), attr)
+                win.addstr(mid + 1, x, label, palette.dim)
+        except curses.error:
+            pass
+```
+
+`vfd/src/vfd/meters/rms.py`:
+```python
+import curses
+
+DECAY_RATE = 1.0
+
+
+class RMSMeter:
+    """RMS meter — perceived loudness averaged over ~300ms."""
+
+    def __init__(self, style: str = "dual"):
+        self._style = style
+        self._level = -60.0
+
+    def render(self, win, rms_db: float, peak_db: float, palette):
+        # RMS moves more sluggishly than peak
+        if rms_db > self._level:
+            self._level = rms_db
+        else:
+            self._level = max(rms_db, self._level - DECAY_RATE)
+
+        dispatch = {
+            "dual":      self._render_dual,
+            "bar":       self._render_bar,
+            "segmented": self._render_segmented,
+        }
+        dispatch.get(self._style, self._render_dual)(win, self._level, peak_db, palette)
+
+    def _render_dual(self, win, rms_db: float, peak_db: float, palette):
+        rows, cols = win.getmaxyx()
+        db_min, db_max = -60.0, 0.0
+        bar_cols = cols - 10
+        rms_filled = int((rms_db - db_min) / (db_max - db_min) * bar_cols)
+        rms_filled = max(0, min(rms_filled, bar_cols))
+        peak_col = int((peak_db - db_min) / (db_max - db_min) * bar_cols)
+        peak_col = max(0, min(peak_col, bar_cols - 1))
+        mid = rows // 2
+        try:
+            win.addstr(0, 0, "RMS", palette.dim)
+            for label, y in [("L", mid - 1), ("R", mid)]:
+                win.addstr(y, 0, f"{label} ▐", palette.dim)
+                for i in range(bar_cols):
+                    attr = palette.mid if i < rms_filled else palette.bg
+                    char = "█" if i < rms_filled else "░"
+                    win.addstr(y, 4 + i, char, attr)
+                # peak marker overlaid
+                if 0 <= peak_col < bar_cols:
+                    win.addstr(y, 4 + peak_col, "▌", palette.peak)
+                win.addstr(y, 4 + bar_cols, "▌", palette.dim)
+            win.addstr(rows - 1, 0, f"RMS {rms_db:>+5.1f}  PK {peak_db:>+5.1f}", palette.mid)
+        except curses.error:
+            pass
+
+    def _render_bar(self, win, rms_db: float, peak_db: float, palette):
+        rows, cols = win.getmaxyx()
+        db_min, db_max = -60.0, 0.0
+        bar_cols = cols - 10
+        filled = int((rms_db - db_min) / (db_max - db_min) * bar_cols)
+        filled = max(0, min(filled, bar_cols))
+        mid = rows // 2
+        try:
+            win.addstr(0, 0, "RMS", palette.dim)
+            win.addstr(mid, 0, "  ▐", palette.dim)
+            for i in range(bar_cols):
+                attr = palette.mid if i < filled else palette.bg
+                win.addstr(mid, 3 + i, "█" if i < filled else "░", attr)
+            win.addstr(mid, 3 + bar_cols, "▌", palette.dim)
+            win.addstr(rows - 1, 0, f"{rms_db:>+6.1f}dB", palette.mid)
+        except curses.error:
+            pass
+
+    def _render_segmented(self, win, rms_db: float, peak_db: float, palette):
+        rows, cols = win.getmaxyx()
+        n_segs = cols - 4
+        filled = int(max(0.0, (rms_db + 60) / 60) * n_segs)
+        filled = min(filled, n_segs)
+        mid = rows // 2
+        try:
+            win.addstr(0, 0, "RMS", palette.dim)
+            win.addstr(mid, 0, "  ▐", palette.dim)
+            for i in range(n_segs):
+                attr = palette.mid if i < filled else palette.bg
+                win.addstr(mid, 3 + i, "■" if i < filled else "□", attr)
+            win.addstr(rows - 1, 0, f"{rms_db:>+6.1f}dB", palette.mid)
+        except curses.error:
+            pass
+```
+
+`vfd/src/vfd/meters/lufs.py`:
+```python
+import curses
+from typing import List
+
+SPARKLINE = " ▁▂▃▄▅▆▇█"
+# Common streaming/broadcast LUFS targets
+TARGETS = {"Spotify": -14, "YouTube": -14, "Apple Music": -16, "Broadcast": -23}
+
+
+class LUFSMeter:
+    """LUFS meter — broadcast/streaming loudness standard (ITU-R BS.1770)."""
+
+    def __init__(self, style: str = "graph"):
+        self._style = style
+
+    def render(self, win, momentary: float, shortterm: float,
+               integrated: float, history: List[float], palette):
+        dispatch = {
+            "graph":   self._render_graph,
+            "target":  self._render_target,
+            "numeric": self._render_numeric,
+        }
+        dispatch.get(self._style, self._render_graph)(
+            win, momentary, shortterm, integrated, history, palette
+        )
+
+    def _render_graph(self, win, m, st, i, history, palette):
+        rows, cols = win.getmaxyx()
+        try:
+            win.addstr(0, 0, "LUFS", palette.dim)
+            win.addstr(1, 0, f" M: {m:>+6.1f}", palette.bright)
+            win.addstr(2, 0, f"ST: {st:>+6.1f}", palette.mid)
+            win.addstr(3, 0, f" I: {i:>+6.1f}", palette.dim)
+            if rows > 5 and history:
+                graph_row = 5
+                graph_cols = min(cols - 1, len(history))
+                db_min, db_max = -36.0, 0.0
+                recent = history[-graph_cols:]
+                line = ""
+                for val in recent:
+                    idx = int((val - db_min) / (db_max - db_min) * (len(SPARKLINE) - 1))
+                    idx = max(0, min(idx, len(SPARKLINE) - 1))
+                    line += SPARKLINE[idx]
+                win.addstr(graph_row, 0, line, palette.mid)
+        except curses.error:
+            pass
+
+    def _render_target(self, win, m, st, i, history, palette):
+        rows, cols = win.getmaxyx()
+        db_min, db_max = -36.0, 0.0
+        bar_cols = cols - 2
+        try:
+            win.addstr(0, 0, "LUFS TARGET", palette.dim)
+            # Show integrated value as a bar
+            filled = int((i - db_min) / (db_max - db_min) * bar_cols)
+            filled = max(0, min(filled, bar_cols))
+            mid = rows // 2
+            win.addstr(mid, 0, "▐", palette.dim)
+            for x in range(bar_cols):
+                win.addstr(mid, 1 + x, "█" if x < filled else "░",
+                           palette.bright if x < filled else palette.bg)
+            win.addstr(mid, 1 + bar_cols, "▌", palette.dim)
+            # Target markers
+            row = mid + 1
+            for name, target in TARGETS.items():
+                if row >= rows:
+                    break
+                target_col = int((target - db_min) / (db_max - db_min) * bar_cols)
+                target_col = max(0, min(target_col, bar_cols - 1))
+                marker = f"↑{name}({target})"
+                if target_col + len(marker) < cols:
+                    win.addstr(row, 1 + target_col, marker, palette.dim)
+                row += 1
+            win.addstr(rows - 1, 0, f" I: {i:>+6.1f} LUFS", palette.mid)
+        except curses.error:
+            pass
+
+    def _render_numeric(self, win, m, st, i, history, palette):
+        rows, cols = win.getmaxyx()
+        mid = rows // 2 - 1
+        try:
+            win.addstr(0, 0, "LUFS", palette.dim)
+            win.addstr(max(0, mid),     0, f" M {m:>+6.1f}", palette.bright)
+            win.addstr(max(0, mid + 1), 0, f"ST {st:>+6.1f}", palette.mid)
+            win.addstr(max(0, mid + 2), 0, f" I {i:>+6.1f}", palette.dim)
+        except curses.error:
+            pass
+```
 
 **Step 4: Run tests**
 
@@ -1611,15 +2009,27 @@ class VFDRenderer:
 
         frame_duration = 1.0 / self._cfg.fps
 
+        # Build layout once; rebuild only on terminal resize
+        layout = build_layout(self._cfg.layout, screen)
+        meter_wins = split_meter_pane(layout.panes["meters"], ["vu", "peak", "rms", "lufs"])
+        last_size = screen.getmaxyx()
+
         while True:
             key = screen.getch()
             if key == ord("q"):
                 break
 
+            # Rebuild layout if terminal was resized
+            current_size = screen.getmaxyx()
+            if current_size != last_size:
+                screen.clear()
+                layout = build_layout(self._cfg.layout, screen)
+                meter_wins = split_meter_pane(layout.panes["meters"], ["vu", "peak", "rms", "lufs"])
+                last_size = current_size
+
             pcm = capture.read(CHUNK_SIZE)
             result = analyzer.process(pcm)
 
-            layout = build_layout(self._cfg.layout, screen)
             spectrum_win = layout.panes["spectrum"]["window"]
             meter_pane = layout.panes["meters"]
 
@@ -1628,8 +2038,7 @@ class VFDRenderer:
             spectrum_meter.render(spectrum_win, result.spectrum_db, palette)
             spectrum_win.noutrefresh()
 
-            # Split meter pane into 4
-            meter_wins = split_meter_pane(meter_pane, ["vu", "peak", "rms", "lufs"])
+            # Draw meters (windows already split, reused each frame)
 
             meter_wins["vu"]["window"].erase()
             vu_meter.render(meter_wins["vu"]["window"], result.rms_db, palette)
