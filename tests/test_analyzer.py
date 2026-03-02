@@ -42,6 +42,8 @@ def test_result_has_all_fields():
     pcm = make_sine(440)
     result = analyzer.process(pcm)
     assert hasattr(result, "spectrum_db")
+    assert hasattr(result, "spectrum_db_l")
+    assert hasattr(result, "spectrum_db_r")
     assert hasattr(result, "rms_db")
     assert hasattr(result, "peak_db")
     assert hasattr(result, "lufs_momentary")
@@ -72,3 +74,9 @@ def test_set_bands_keeps_integrated_state():
     assert analyzer._integrated_count == count_before
     assert analyzer._integrated_sum_sq == sum_before
     assert analyzer._integrated_compensation == comp_before
+
+
+def test_each_spectrum_band_has_at_least_one_fft_bin():
+    analyzer = SpectrumAnalyzer(sample_rate=44100, bands=128, channels=2)
+    assert len(analyzer._band_bin_ranges) == 128
+    assert all(hi > lo for lo, hi in analyzer._band_bin_ranges)

@@ -99,8 +99,13 @@ class VFDRenderer:
 
             if self._mode is not None:
                 screen.erase()
-                self._render_single_mode(
+                panel = self._draw_panel(
                     screen,
+                    self._panel_title(self._mode),
+                    self._mode_legend(self._mode, result),
+                )
+                self._render_single_mode(
+                    panel,
                     self._mode,
                     result,
                     spectrum_meter,
@@ -114,24 +119,69 @@ class VFDRenderer:
             else:
                 spectrum_win = layout.panes["spectrum"]["window"]
                 spectrum_win.erase()
-                spectrum_meter.render(spectrum_win, result.spectrum_db, palette)
+                spectrum_panel = self._draw_panel(
+                    spectrum_win,
+                    "Spectrum",
+                    self._stereo_legend(result.peak_db_l, result.peak_db_r, "PK"),
+                )
+                spectrum_meter.render(
+                    spectrum_panel,
+                    result.spectrum_db_l,
+                    palette,
+                    bands_db_r=result.spectrum_db_r,
+                )
                 spectrum_win.noutrefresh()
 
                 meter_wins["vu"]["window"].erase()
-                vu_meter.render(meter_wins["vu"]["window"], result.rms_db, palette)
+                vu_panel = self._draw_panel(
+                    meter_wins["vu"]["window"],
+                    "VU",
+                    self._stereo_legend(result.rms_db_l, result.rms_db_r, "RMS"),
+                )
+                vu_meter.render(vu_panel, result.rms_db, palette, rms_db_l=result.rms_db_l, rms_db_r=result.rms_db_r)
                 meter_wins["vu"]["window"].noutrefresh()
 
                 meter_wins["peak"]["window"].erase()
-                peak_meter.render(meter_wins["peak"]["window"], result.peak_db, palette)
+                peak_panel = self._draw_panel(
+                    meter_wins["peak"]["window"],
+                    "Peak",
+                    self._stereo_legend(result.peak_db_l, result.peak_db_r, "PK"),
+                )
+                peak_meter.render(
+                    peak_panel,
+                    result.peak_db,
+                    palette,
+                    peak_db_l=result.peak_db_l,
+                    peak_db_r=result.peak_db_r,
+                )
                 meter_wins["peak"]["window"].noutrefresh()
 
                 meter_wins["rms"]["window"].erase()
-                rms_meter.render(meter_wins["rms"]["window"], result.rms_db, result.peak_db, palette)
+                rms_panel = self._draw_panel(
+                    meter_wins["rms"]["window"],
+                    "RMS",
+                    self._stereo_legend(result.rms_db_l, result.rms_db_r, "RMS"),
+                )
+                rms_meter.render(
+                    rms_panel,
+                    result.rms_db,
+                    result.peak_db,
+                    palette,
+                    rms_db_l=result.rms_db_l,
+                    rms_db_r=result.rms_db_r,
+                    peak_db_l=result.peak_db_l,
+                    peak_db_r=result.peak_db_r,
+                )
                 meter_wins["rms"]["window"].noutrefresh()
 
                 meter_wins["lufs"]["window"].erase()
-                lufs_meter.render(
+                lufs_panel = self._draw_panel(
                     meter_wins["lufs"]["window"],
+                    "LUFS~",
+                    "M/ST/I approximate",
+                )
+                lufs_meter.render(
+                    lufs_panel,
                     result.lufs_momentary,
                     result.lufs_shortterm,
                     result.lufs_integrated,
@@ -161,13 +211,33 @@ class VFDRenderer:
         palette,
     ) -> None:
         if mode == "spectrum":
-            spectrum_meter.render(win, result.spectrum_db, palette)
+            spectrum_meter.render(
+                win,
+                result.spectrum_db_l,
+                palette,
+                bands_db_r=result.spectrum_db_r,
+            )
         elif mode == "vu":
-            vu_meter.render(win, result.rms_db, palette)
+            vu_meter.render(win, result.rms_db, palette, rms_db_l=result.rms_db_l, rms_db_r=result.rms_db_r)
         elif mode == "peak":
-            peak_meter.render(win, result.peak_db, palette)
+            peak_meter.render(
+                win,
+                result.peak_db,
+                palette,
+                peak_db_l=result.peak_db_l,
+                peak_db_r=result.peak_db_r,
+            )
         elif mode == "rms":
-            rms_meter.render(win, result.rms_db, result.peak_db, palette)
+            rms_meter.render(
+                win,
+                result.rms_db,
+                result.peak_db,
+                palette,
+                rms_db_l=result.rms_db_l,
+                rms_db_r=result.rms_db_r,
+                peak_db_l=result.peak_db_l,
+                peak_db_r=result.peak_db_r,
+            )
         elif mode == "lufs":
             lufs_meter.render(
                 win,
@@ -179,3 +249,54 @@ class VFDRenderer:
             )
         else:
             raise ValueError(f"Unsupported mode: {mode}")
+
+    def _draw_panel(self, win, title: str, legend: str):
+        rows, cols = win.getmaxyx()
+        if rows < 3 or cols < 4:
+            return win
+
+        try:
+            win.box()
+            title_text = f" {title} "
+            legend_text = f" {legend} "
+            if len(title_text) < cols - 2:
+                win.addstr(0, 2, title_text)
+            if len(legend_text) < cols - 2:
+                start = max(2, cols - len(legend_text) - 2)
+                win.addstr(0, start, legend_text)
+        except curses.error:
+            pass
+
+        inner_rows = max(rows - 2, 1)
+        inner_cols = max(cols - 2, 1)
+        return win.derwin(inner_rows, inner_cols, 1, 1)
+
+    def _panel_title(self, mode: str) -> str:
+        return {
+            "spectrum": "Spectrum",
+            "vu": "VU",
+            "peak": "Peak",
+            "rms": "RMS",
+            "lufs": "LUFS~",
+        }.get(mode, mode.upper())
+
+    def _panel_legend(self, mode: str) -> str:
+        return {
+            "spectrum": "q quit | bars dBFS with peak hold",
+            "vu": "stereo ballistic average",
+            "peak": "stereo instantaneous peak",
+            "rms": "stereo energy + peak marker",
+            "lufs": "M/ST/I approximate",
+        }.get(mode, "")
+
+    def _mode_legend(self, mode: str, result) -> str:
+        if mode == "vu":
+            return self._stereo_legend(result.rms_db_l, result.rms_db_r, "RMS")
+        if mode == "peak":
+            return self._stereo_legend(result.peak_db_l, result.peak_db_r, "PK")
+        if mode == "rms":
+            return self._stereo_legend(result.rms_db_l, result.rms_db_r, "RMS")
+        return self._panel_legend(mode)
+
+    def _stereo_legend(self, left_db: float, right_db: float, tag: str) -> str:
+        return f"{tag} L {left_db:+5.1f}dB R {right_db:+5.1f}dB"

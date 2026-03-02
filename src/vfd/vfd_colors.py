@@ -38,6 +38,19 @@ def meter_zone_attr_ratio(ratio: float, palette) -> int:
     return palette.dim
 
 
+def meter_level_attr(db: float, palette, floor_db: float = -60.0, ceil_db: float = 0.0) -> int:
+    ratio = (db - floor_db) / max(ceil_db - floor_db, 1e-6)
+    ratio = max(0.0, min(1.0, ratio))
+    return meter_zone_attr_ratio(ratio, palette)
+
+
+def hotter_attr(attr_a: int, attr_b: int, palette) -> int:
+    order = {palette.dim: 0, palette.mid: 1, palette.warn: 2, palette.clip: 3, palette.bright: 3}
+    score_a = order.get(attr_a, 0)
+    score_b = order.get(attr_b, 0)
+    return attr_a if score_a >= score_b else attr_b
+
+
 _PALETTE_OFFSET = {"green": 10, "amber": 20, "blue": 30, "white": 40}
 _PALETTE_RGB = {
     "green": {

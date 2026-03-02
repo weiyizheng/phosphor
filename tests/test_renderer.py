@@ -8,6 +8,8 @@ from vfd.renderer import VFDRenderer
 
 class DummyResult:
     spectrum_db = [-10.0] * 8
+    spectrum_db_l = [-10.0] * 8
+    spectrum_db_r = [-11.0] * 8
     rms_db = -12.0
     peak_db = -3.0
     lufs_momentary = -14.0
