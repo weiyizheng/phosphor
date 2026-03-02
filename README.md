@@ -2,6 +2,8 @@
 
 A real-time VFD (Vacuum Fluorescent Display) audio analyzer for your terminal. Captures your Mac's system audio and renders a glowing spectrum analyzer alongside VU, Peak, RMS, and LUFS meters — all in the style of vintage hi-fi equipment displays.
 
+![VFD screenshot](docs/images/setup-2026-03-02-140702.png)
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  ▁▁▂▃▄▅▆▇█▇▆▅▄▅▆▇███▇▆▅▄▃▄▅▆▇▆▅▄▃▂▃▄▅▄▃▂▁▂▃▂▁▁▁▂▃▂▁▁▁▁▁▁▁▁▁▁  │
@@ -40,30 +42,69 @@ pip install -e .
 
 phosphor captures audio by reading from BlackHole, a virtual audio device that mirrors your system output.
 
-**Step 1: Install BlackHole**
+### Quick setup (recommended)
+
+**1. Install BlackHole 2ch**
 
 ```bash
 brew install blackhole-2ch
 ```
 
-**Step 2: Create an Aggregate Device**
+**2. Create a Multi-Output Device in Audio MIDI Setup**
 
-So audio plays through your speakers AND gets captured simultaneously:
+This avoids losing speaker output while letting VFD capture system audio.
 
-1. Open **Audio MIDI Setup** (Applications → Utilities → Audio MIDI Setup)
-2. Click **+** at the bottom left → **Create Aggregate Device**
-3. Check both **BlackHole 2ch** and your **speakers/headphones**
-4. Name it something like `VFD Capture`
+1. Open **Audio MIDI Setup** (Applications -> Utilities)
+2. Click **+** -> **Create Multi-Output Device**
+3. Check both:
+   - your physical output (speakers/headphones)
+   - **BlackHole 2ch**
+4. Set the physical output as the **Master Device**
+5. Enable **Drift Correction** on **BlackHole 2ch**
+6. Rename it (for example `VFD Multi-Output`)
 
-**Step 3: Set system output**
+**3. Match sample rates**
 
-System Settings → Sound → Output → select your new Aggregate Device
+For both the physical device and BlackHole:
 
-**Step 4: Run the guided setup wizard**
+1. Select each device in Audio MIDI Setup
+2. Set **Format** to the same value, preferably **48,000 Hz**
+
+Mismatched rates often cause unstable meters and distorted levels.
+
+**4. Set macOS output**
+
+System Settings -> Sound -> Output -> select your `VFD Multi-Output` device.
+
+**5. Verify capture device name**
+
+```bash
+phosphor --list-devices
+```
+
+Find the exact `BlackHole 2ch` device string and use it if needed:
+
+```bash
+phosphor --device "BlackHole 2ch"
+```
+
+**6. Run the built-in setup and start**
 
 ```bash
 phosphor --setup
+phosphor
 ```
+
+### Troubleshooting
+
+- No app audio while VFD is running:
+  - Recheck macOS output is the Multi-Output device, not BlackHole alone.
+- Meters pinned/saturated:
+  - Confirm sample rates are matched and app/device volume is not clipping.
+- Wrong capture source:
+  - Run `phosphor --list-devices` and set `--device` explicitly.
+- Silence in VFD:
+  - In Audio MIDI Setup, verify BlackHole is included in Multi-Output and enabled.
 
 ## Usage
 
@@ -72,7 +113,7 @@ phosphor --setup
 phosphor
 
 # Change phosphor color
-phosphor --color amber       # amber | green | blue | white
+phosphor --color amber       # green | amber | blue | white | btop | hifi
 
 # Change frequency band count
 phosphor --bands 128         # 32 | 64 | 128 | auto
@@ -135,10 +176,12 @@ Press `q` to quit.
 
 | Preset  | Look                                      |
 |---------|-------------------------------------------|
-| `green` | Classic Futaba/Noritake VFD phosphor (default) |
+| `green` | Classic Futaba/Noritake VFD phosphor |
 | `amber` | Warm vintage hi-fi receiver               |
 | `blue`  | Modern Sony/Pioneer equipment             |
 | `white` | High-brightness neutral                   |
+| `btop`  | High-contrast neon gradient               |
+| `hifi`  | Refined audiophile-inspired palette (default) |
 
 ## Meters
 

@@ -3,7 +3,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from vfd.capture import AudioCapture, DeviceNotFoundError
+from phosphor.capture import AudioCapture, DeviceNotFoundError
 
 
 def test_raises_if_device_not_found():

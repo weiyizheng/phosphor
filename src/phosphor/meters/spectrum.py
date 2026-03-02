@@ -5,13 +5,12 @@ from typing import List
 
 import numpy as np
 
-from vfd.vfd_colors import meter_zone_attr_ratio
+from phosphor.vfd_colors import meter_zone_attr_ratio
 
 DECAY_RATE = 3.0
 PEAK_HOLD_FRAMES = 45
-# Braille-like dense particles for a finer, btop-style texture.
-PARTICLE_DIM = "⠄"
-PARTICLE_MID = "⣤"
+PARTICLE_DIM = "⣀"
+PARTICLE_MID = "⣶"
 PARTICLE_HOT = "⣿"
 PEAK_PARTICLE = "⠉"
 
@@ -40,6 +39,14 @@ class SpectrumMeter:
         self._peak_timers_r: List[int] = []
         self._display_floor = -72.0
         self._display_ceil = -6.0
+
+    def _bass_compensation(self, n: int) -> np.ndarray:
+        # Reduce persistent LF dominance (common in mastered music) so lows
+        # don't pin the left side while preserving visible bass dynamics.
+        x = np.linspace(0.0, 1.0, n)
+        main_tilt = 17.0 * (1.0 - x) ** 0.5
+        sub_bass_trim = 4.0 * np.exp(-x * 10.0)  # extra attenuation for first few bins
+        return main_tilt + sub_bass_trim
 
     def render(self, win, bands_db: List[float], palette, bands_db_r: List[float] | None = None) -> None:
         rows, cols = win.getmaxyx()
@@ -104,15 +111,21 @@ class SpectrumMeter:
         )
 
     def _update_display_range(self, bands_l: List[float], bands_r: List[float] | None) -> None:
-        values = bands_l + (bands_r if bands_r is not None else [])
+        n = len(bands_l)
+        if n == 0:
+            return
+        comp = self._bass_compensation(n)
+        adjusted_l = [bands_l[i] - float(comp[i]) for i in range(n)]
+        adjusted_r = [bands_r[i] - float(comp[i]) for i in range(n)] if bands_r is not None else []
+        values = adjusted_l + adjusted_r
         if not values:
             return
-        p90 = float(np.percentile(values, 90))
-        p10 = float(np.percentile(values, 10))
-        target_ceil = min(3.0, max(-24.0, p90 + 3.0))
-        target_floor = min(target_ceil - 18.0, max(-90.0, p10 - 8.0))
-        if target_ceil - target_floor < 18.0:
-            target_floor = target_ceil - 18.0
+        p95 = float(np.percentile(values, 95))
+        p20 = float(np.percentile(values, 20))
+        target_ceil = min(0.0, max(-18.0, p95 + 2.5))
+        target_floor = min(target_ceil - 20.0, max(-92.0, p20 - 10.0))
+        if target_ceil - target_floor < 20.0:
+            target_floor = target_ceil - 20.0
         alpha = 0.2
         self._display_ceil = (1.0 - alpha) * self._display_ceil + alpha * target_ceil
         self._display_floor = (1.0 - alpha) * self._display_floor + alpha * target_floor
@@ -137,7 +150,7 @@ class SpectrumMeter:
         db_max = self._display_ceil
         bar_cols = max(cols, 1)
         starts = [int(i * bar_cols / n) for i in range(n)] + [bar_cols]
-        tilt = np.linspace(6.0, 0.0, n)
+        tilt = self._bass_compensation(n)
 
         for i, target in enumerate(bands_db):
             target = target - float(tilt[i])

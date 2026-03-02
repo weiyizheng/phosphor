@@ -1,6 +1,6 @@
 import numpy as np
 
-from vfd.ring_buffer import RingBuffer
+from phosphor.ring_buffer import RingBuffer
 
 
 def test_write_and_read():

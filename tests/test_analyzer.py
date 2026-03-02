@@ -1,6 +1,6 @@
 import numpy as np
 
-from vfd.analyzer import SpectrumAnalyzer
+from phosphor.analyzer import SpectrumAnalyzer
 
 
 def make_sine(freq_hz, duration_s=0.1, sample_rate=44100):
@@ -55,25 +55,24 @@ def test_result_has_all_fields():
 def test_integrated_lufs_uses_bounded_state():
     analyzer = SpectrumAnalyzer(sample_rate=44100, bands=64, channels=2)
     pcm = make_sine(440)
-    for _ in range(10):
+    for _ in range(30):
         analyzer.process(pcm)
-    assert not hasattr(analyzer, "_integrated_squares")
-    assert analyzer._integrated_count > 0
-    assert hasattr(analyzer, "_integrated_compensation")
+    assert analyzer._momentary_sq.size <= analyzer._mom_len
+    assert analyzer._shortterm_sq.size <= analyzer._short_len
+    assert len(analyzer._block_powers) > 0
 
 
 def test_set_bands_keeps_integrated_state():
     analyzer = SpectrumAnalyzer(sample_rate=44100, bands=64, channels=2)
     pcm = make_sine(1000)
-    analyzer.process(pcm)
-    count_before = analyzer._integrated_count
-    sum_before = analyzer._integrated_sum_sq
-    comp_before = analyzer._integrated_compensation
+    for _ in range(30):
+        analyzer.process(pcm)
+    blocks_before = len(analyzer._block_powers)
+    tail_before = analyzer._block_buffer.size
     analyzer.set_bands(32)
     assert analyzer._bands == 32
-    assert analyzer._integrated_count == count_before
-    assert analyzer._integrated_sum_sq == sum_before
-    assert analyzer._integrated_compensation == comp_before
+    assert len(analyzer._block_powers) == blocks_before
+    assert analyzer._block_buffer.size == tail_before
 
 
 def test_each_spectrum_band_has_at_least_one_fft_bin():

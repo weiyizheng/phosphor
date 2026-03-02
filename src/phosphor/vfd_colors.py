@@ -51,7 +51,7 @@ def hotter_attr(attr_a: int, attr_b: int, palette) -> int:
     return attr_a if score_a >= score_b else attr_b
 
 
-_PALETTE_OFFSET = {"green": 10, "amber": 20, "blue": 30, "white": 40}
+_PALETTE_OFFSET = {"green": 10, "amber": 20, "blue": 30, "white": 40, "btop": 50, "hifi": 60}
 _PALETTE_RGB = {
     "green": {
         "bright": (200, 1000, 200),
@@ -89,6 +89,25 @@ _PALETTE_RGB = {
         "warn": (1000, 720, 120),
         "clip": (1000, 160, 160),
     },
+    "btop": {
+        "bright": (930, 420, 1000),  # neon magenta
+        "mid": (380, 720, 1000),     # cyan-blue
+        "dim": (180, 260, 500),      # deep cool low-level
+        "peak": (1000, 860, 120),    # yellow accent
+        "bg": (35, 35, 60),
+        "warn": (700, 1000, 120),    # neon green
+        "clip": (1000, 180, 180),    # bright red
+    },
+    "hifi": {
+        # Hi-fi inspired: phosphor body with warm warning/clip accents.
+        "bright": (760, 1000, 620),
+        "mid": (430, 780, 380),
+        "dim": (140, 360, 150),
+        "peak": (1000, 920, 650),
+        "bg": (20, 55, 24),
+        "warn": (1000, 760, 260),
+        "clip": (1000, 360, 220),
+    },
 }
 
 _initialized = False
@@ -111,6 +130,8 @@ def init_colors() -> None:
                 "amber": VFDPalette("amber", curses.A_BOLD, curses.A_NORMAL, curses.A_DIM, curses.A_BOLD, curses.A_DIM, curses.A_BOLD, curses.A_BOLD),
                 "blue": VFDPalette("blue", curses.A_BOLD, curses.A_NORMAL, curses.A_DIM, curses.A_BOLD, curses.A_DIM, curses.A_BOLD, curses.A_BOLD),
                 "white": VFDPalette("white", curses.A_BOLD, curses.A_NORMAL, curses.A_DIM, curses.A_BOLD, curses.A_DIM, curses.A_BOLD, curses.A_BOLD),
+                "btop": VFDPalette("btop", curses.A_BOLD, curses.A_NORMAL, curses.A_DIM, curses.A_BOLD, curses.A_DIM, curses.A_BOLD, curses.A_BOLD),
+                "hifi": VFDPalette("hifi", curses.A_BOLD, curses.A_NORMAL, curses.A_DIM, curses.A_BOLD, curses.A_DIM, curses.A_BOLD, curses.A_BOLD),
             }
         )
         _initialized = True

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List
 
 import numpy as np
-from scipy.signal import windows
+from scipy.signal import lfilter, resample_poly, windows
 
 
 @dataclass
@@ -36,12 +36,25 @@ class SpectrumAnalyzer:
         self._band_edges = self._log_band_edges(bands, 20.0, 20000.0)
         self._band_bin_ranges = self._compute_band_bin_ranges()
 
-        self._momentary_buf = deque(maxlen=int(sample_rate * 0.4))
-        self._shortterm_buf = deque(maxlen=int(sample_rate * 3.0))
-        self._integrated_sum_sq = 0.0
-        self._integrated_compensation = 0.0
-        self._integrated_count = 0
+        # BS.1770 loudness pipeline state.
+        self._lufs_sr = 48000
+        self._mom_len = int(self._lufs_sr * 0.4)
+        self._short_len = int(self._lufs_sr * 3.0)
+        self._block_size = self._mom_len
+        self._hop_size = int(self._block_size * 0.25)  # 75% overlap
+        self._momentary_sq = np.zeros(0, dtype=np.float64)
+        self._shortterm_sq = np.zeros(0, dtype=np.float64)
+        self._block_buffer = np.zeros(0, dtype=np.float64)
+        self._block_powers: list[float] = []
         self._lufs_history: deque[float] = deque(maxlen=200)
+
+        # ITU-R BS.1770 K-weighting (48 kHz coefficients).
+        self._k_b_pre = np.array([1.53512485958697, -2.69169618940638, 1.19839281085285], dtype=np.float64)
+        self._k_a_pre = np.array([1.0, -1.69065929318241, 0.73248077421585], dtype=np.float64)
+        self._k_b_rlb = np.array([1.0, -2.0, 1.0], dtype=np.float64)
+        self._k_a_rlb = np.array([1.0, -1.99004745483398, 0.99007225036621], dtype=np.float64)
+        self._zi_pre = np.zeros(max(len(self._k_a_pre), len(self._k_b_pre)) - 1, dtype=np.float64)
+        self._zi_rlb = np.zeros(max(len(self._k_a_rlb), len(self._k_b_rlb)) - 1, dtype=np.float64)
 
     def process(self, pcm: np.ndarray) -> AnalysisResult:
         if pcm.ndim == 1:
@@ -77,16 +90,7 @@ class SpectrumAnalyzer:
         peak_db_l = 20 * np.log10(max(float(peak_l), 1e-9))
         peak_db_r = 20 * np.log10(max(float(peak_r), 1e-9))
 
-        squares_np = mono**2
-        squares = squares_np.tolist()
-        self._momentary_buf.extend(squares)
-        self._shortterm_buf.extend(squares)
-        self._kahan_add(float(np.sum(squares_np, dtype=np.float64)))
-        self._integrated_count += len(squares_np)
-
-        lufs_m = self._lkfs(list(self._momentary_buf))
-        lufs_st = self._lkfs(list(self._shortterm_buf))
-        lufs_i = self._lkfs_integrated(self._integrated_sum_sq, self._integrated_count)
+        lufs_m, lufs_st, lufs_i = self._process_lufs(mono)
         self._lufs_history.append(lufs_st)
 
         return AnalysisResult(
@@ -127,23 +131,69 @@ class SpectrumAnalyzer:
             out.append(20 * np.log10(max(val, 1e-9)))
         return out
 
-    def _lkfs(self, squares: List[float]) -> float:
-        if not squares:
-            return -70.0
-        mean_sq = float(np.mean(squares))
-        return -0.691 + 10 * np.log10(max(mean_sq, 1e-9))
+    def _process_lufs(self, mono: np.ndarray) -> tuple[float, float, float]:
+        weighted = self._k_weight(mono)
+        if weighted.size == 0:
+            return -70.0, -70.0, -70.0
 
-    def _lkfs_integrated(self, total_sum_sq: float, count: int) -> float:
-        if count <= 0:
-            return -70.0
-        mean_sq = total_sum_sq / count
-        return -0.691 + 10 * np.log10(max(mean_sq, 1e-9))
+        squares = weighted * weighted
+        self._momentary_sq = self._append_tail(self._momentary_sq, squares, self._mom_len)
+        self._shortterm_sq = self._append_tail(self._shortterm_sq, squares, self._short_len)
+        self._block_buffer = np.concatenate((self._block_buffer, squares))
 
-    def _kahan_add(self, value: float) -> None:
-        y = value - self._integrated_compensation
-        t = self._integrated_sum_sq + y
-        self._integrated_compensation = (t - self._integrated_sum_sq) - y
-        self._integrated_sum_sq = t
+        while self._block_buffer.size >= self._block_size:
+            block = self._block_buffer[: self._block_size]
+            self._block_powers.append(float(np.mean(block)))
+            self._block_buffer = self._block_buffer[self._hop_size :]
+
+        lufs_m = self._power_to_lkfs(float(np.mean(self._momentary_sq))) if self._momentary_sq.size else -70.0
+        lufs_st = self._power_to_lkfs(float(np.mean(self._shortterm_sq))) if self._shortterm_sq.size else -70.0
+        lufs_i = self._integrated_lkfs()
+        return lufs_m, lufs_st, lufs_i
+
+    def _k_weight(self, mono: np.ndarray) -> np.ndarray:
+        signal = mono.astype(np.float64, copy=False)
+        if self._sample_rate != self._lufs_sr:
+            signal = resample_poly(signal, self._lufs_sr, self._sample_rate)
+
+        if signal.size == 0:
+            return signal
+
+        y, self._zi_pre = lfilter(self._k_b_pre, self._k_a_pre, signal, zi=self._zi_pre)
+        y, self._zi_rlb = lfilter(self._k_b_rlb, self._k_a_rlb, y, zi=self._zi_rlb)
+        return y
+
+    def _integrated_lkfs(self) -> float:
+        if not self._block_powers:
+            return -70.0
+
+        powers = np.array(self._block_powers, dtype=np.float64)
+        abs_gate = self._lkfs_to_power(-70.0)
+        powers = powers[powers > abs_gate]
+        if powers.size == 0:
+            return -70.0
+
+        ungated = self._power_to_lkfs(float(np.mean(powers)))
+        rel_gate = self._lkfs_to_power(ungated - 10.0)
+        gated = powers[powers > rel_gate]
+        if gated.size == 0:
+            return -70.0
+        return self._power_to_lkfs(float(np.mean(gated)))
+
+    def _append_tail(self, current: np.ndarray, new: np.ndarray, max_len: int) -> np.ndarray:
+        if current.size == 0:
+            out = new
+        else:
+            out = np.concatenate((current, new))
+        if out.size > max_len:
+            out = out[-max_len:]
+        return out
+
+    def _power_to_lkfs(self, power: float) -> float:
+        return -0.691 + 10.0 * np.log10(max(power, 1e-12))
+
+    def _lkfs_to_power(self, lkfs: float) -> float:
+        return float(10.0 ** ((lkfs + 0.691) / 10.0))
 
     def _compute_band_bin_ranges(self) -> List[tuple[int, int]]:
         ranges: List[tuple[int, int]] = []

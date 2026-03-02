@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "vfd"
+name = "phosphor"
 version = "0.1.0"
 description = "VFD Audio Spectrum Analyzer for macOS"
 readme = "README.md"
@@ -22,7 +22,7 @@ dev = [
 ]
 
 [project.scripts]
-vfd = "vfd.cli:main"
+phosphor = "phosphor.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vfd"]
+packages = ["src/phosphor"]

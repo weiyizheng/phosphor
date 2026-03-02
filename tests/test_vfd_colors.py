@@ -1,4 +1,4 @@
-from vfd.vfd_colors import GlowLevel, get_palette
+from phosphor.vfd_colors import GlowLevel, get_palette
 
 
 def test_get_palette_green():

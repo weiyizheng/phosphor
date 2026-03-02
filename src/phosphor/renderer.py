@@ -5,16 +5,16 @@ import shutil
 import sys
 import time
 
-from vfd.analyzer import SpectrumAnalyzer
-from vfd.capture import AudioCapture, DeviceNotFoundError
-from vfd.config import Config
-from vfd.layouts import build_layout, split_meter_pane
-from vfd.meters.lufs import LUFSMeter
-from vfd.meters.peak import PeakMeter
-from vfd.meters.rms import RMSMeter
-from vfd.meters.spectrum import SpectrumMeter
-from vfd.meters.vu import VUMeter
-from vfd.vfd_colors import get_palette, init_colors
+from phosphor.analyzer import SpectrumAnalyzer
+from phosphor.capture import AudioCapture, DeviceNotFoundError
+from phosphor.config import Config
+from phosphor.layouts import build_layout, split_meter_pane
+from phosphor.meters.lufs import LUFSMeter
+from phosphor.meters.peak import PeakMeter
+from phosphor.meters.rms import RMSMeter
+from phosphor.meters.spectrum import SpectrumMeter
+from phosphor.meters.vu import VUMeter
+from phosphor.vfd_colors import get_palette, init_colors
 
 SAMPLE_RATE = 44100
 CHUNK_SIZE = 1024
@@ -177,8 +177,8 @@ class VFDRenderer:
                 meter_wins["lufs"]["window"].erase()
                 lufs_panel = self._draw_panel(
                     meter_wins["lufs"]["window"],
-                    "LUFS~",
-                    "M/ST/I approximate",
+                    "LUFS",
+                    "M/ST/I gated",
                 )
                 lufs_meter.render(
                     lufs_panel,
@@ -256,14 +256,24 @@ class VFDRenderer:
             return win
 
         try:
-            win.box()
+            inner_w = cols - 2
+            top = ["─"] * inner_w
             title_text = f" {title} "
             legend_text = f" {legend} "
-            if len(title_text) < cols - 2:
-                win.addstr(0, 2, title_text)
-            if len(legend_text) < cols - 2:
-                start = max(2, cols - len(legend_text) - 2)
-                win.addstr(0, start, legend_text)
+
+            if len(title_text) < inner_w:
+                tstart = 1
+                top[tstart : tstart + len(title_text)] = list(title_text)
+
+            if len(legend_text) < inner_w:
+                lstart = max(1, inner_w - len(legend_text) - 1)
+                top[lstart : lstart + len(legend_text)] = list(legend_text)
+
+            win.addstr(0, 0, "╭" + "".join(top) + "╮")
+            for y in range(1, rows - 1):
+                win.addstr(y, 0, "│")
+                win.addstr(y, cols - 1, "│")
+            win.addstr(rows - 1, 0, "╰" + ("─" * inner_w) + "╯")
         except curses.error:
             pass
 
@@ -277,7 +287,7 @@ class VFDRenderer:
             "vu": "VU",
             "peak": "Peak",
             "rms": "RMS",
-            "lufs": "LUFS~",
+            "lufs": "LUFS",
         }.get(mode, mode.upper())
 
     def _panel_legend(self, mode: str) -> str:
@@ -286,7 +296,7 @@ class VFDRenderer:
             "vu": "stereo ballistic average",
             "peak": "stereo instantaneous peak",
             "rms": "stereo energy + peak marker",
-            "lufs": "M/ST/I approximate",
+            "lufs": "M/ST/I gated",
         }.get(mode, "")
 
     def _mode_legend(self, mode: str, result) -> str:

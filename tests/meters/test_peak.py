@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from vfd.meters.peak import PeakMeter
+from phosphor.meters.peak import PeakMeter
 
 
 def test_render_vertical_does_not_crash():

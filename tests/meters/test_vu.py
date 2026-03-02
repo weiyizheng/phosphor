@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from vfd.meters.vu import VUMeter
+from phosphor.meters.vu import VUMeter
 
 
 def test_render_segmented_does_not_crash():

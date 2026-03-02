@@ -3,7 +3,7 @@ from __future__ import annotations
 import curses
 from typing import List
 
-SPARKLINE = " .:-=+*#%@"
+SPARKLINE = " ⣀⣤⣦⣶⣷⣿⣿"
 TARGETS = {"Spotify": -14, "YouTube": -14, "Apple": -16, "Broadcast": -23}
 
 
@@ -31,7 +31,7 @@ class LUFSMeter:
     def _render_graph(self, win, m: float, st: float, i: float, history: List[float], palette) -> None:
         rows, cols = win.getmaxyx()
         try:
-            win.addstr(0, 0, "LUFS~", palette.dim)
+            win.addstr(0, 0, "LUFS", palette.dim)
             win.addstr(1, 0, f"M  {m:>+6.1f}", palette.bright)
             win.addstr(2, 0, f"ST {st:>+6.1f}", palette.mid)
             win.addstr(3, 0, f"I  {i:>+6.1f}", palette.dim)
@@ -54,7 +54,7 @@ class LUFSMeter:
         fill = max(0, min(int((i + 36) / 36 * w), w))
         y = max(1, rows // 2)
         try:
-            win.addstr(0, 0, "LUFS~ TARGET", palette.dim)
+            win.addstr(0, 0, "LUFS TARGET", palette.dim)
             for x in range(w):
                 win.addstr(y, x, "=" if x < fill else ".", palette.mid if x < fill else palette.bg)
             r = min(y + 1, rows - 1)
@@ -67,7 +67,7 @@ class LUFSMeter:
         rows, cols = win.getmaxyx()
         mid = max(0, rows // 2 - 1)
         try:
-            win.addstr(0, 0, "LUFS~", palette.dim)
+            win.addstr(0, 0, "LUFS", palette.dim)
             win.addstr(mid, 0, f"M  {m:>+6.1f}", palette.bright)
             if mid + 1 < rows:
                 win.addstr(mid + 1, 0, f"ST {st:>+6.1f}", palette.mid)

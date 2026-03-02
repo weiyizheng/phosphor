@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from vfd.config import (
+from phosphor.config import (
     Config,
     ConfigValidationError,
     DEFAULT_CONFIG_PATH,
@@ -16,7 +16,7 @@ from vfd.config import (
 
 
 @click.command()
-@click.option("--color", type=click.Choice(["green", "amber", "blue", "white"]))
+@click.option("--color", type=click.Choice(["green", "amber", "blue", "white", "btop", "hifi"]))
 @click.option("--bands", type=click.Choice(["32", "64", "128", "auto"]))
 @click.option("--fps", type=int, default=None)
 @click.option("--mono", is_flag=True, default=False)
@@ -107,11 +107,11 @@ Step 2: Create an Aggregate Device
 
 Step 3: Set system output to that Aggregate Device.
 
-Step 4: Configure vfd
-  device = "BlackHole 2ch" in ~/.config/vfd/config.toml
+Step 4: Configure phosphor
+  device = "BlackHole 2ch" in ~/.config/phosphor/config.toml
 
 Step 5: Run
-  vfd
+  phosphor
 """.strip()
     )
 
@@ -125,7 +125,7 @@ def _ensure_config_file(path: Path) -> None:
 
 
 def _run(cfg: Config, mode: str | None) -> None:
-    from vfd.renderer import VFDRenderer
+    from phosphor.renderer import VFDRenderer
 
     renderer = VFDRenderer(cfg, mode)
     renderer.run()

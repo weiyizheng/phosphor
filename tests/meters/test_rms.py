@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from vfd.meters.rms import RMSMeter
+from phosphor.meters.rms import RMSMeter
 
 
 def test_render_dual_does_not_crash():

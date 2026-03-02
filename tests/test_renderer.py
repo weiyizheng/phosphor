@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from vfd.config import Config
-from vfd.renderer import VFDRenderer
+from phosphor.config import Config
+from phosphor.renderer import VFDRenderer
 
 
 class DummyResult:
@@ -11,7 +11,11 @@ class DummyResult:
     spectrum_db_l = [-10.0] * 8
     spectrum_db_r = [-11.0] * 8
     rms_db = -12.0
+    rms_db_l = -12.5
+    rms_db_r = -11.5
     peak_db = -3.0
+    peak_db_l = -3.5
+    peak_db_r = -2.5
     lufs_momentary = -14.0
     lufs_shortterm = -15.0
     lufs_integrated = -16.0

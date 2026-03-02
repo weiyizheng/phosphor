@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import curses
 
-from vfd.vfd_colors import hotter_attr, meter_level_attr, meter_zone_attr
+from phosphor.vfd_colors import hotter_attr, meter_level_attr, meter_zone_attr
 
 DECAY_RATE = 1.0
 PARTICLE_DIM = "⣀"
-PARTICLE_MID = "⣤"
+PARTICLE_MID = "⣶"
 PARTICLE_HOT = "⣿"
 
 
@@ -74,8 +74,10 @@ class RMSMeter:
                 glyph_r = PARTICLE_HOT if attr_r in (palette.warn, palette.clip, palette.bright) else PARTICLE_MID if attr_r == palette.mid else PARTICLE_DIM
                 win.addstr(y_r, 2 + i, glyph_r if lit_r else " ", attr_r)
             if w > 0:
-                win.addstr(y_l, min(2 + max(pk_l - 1, 0), w + 1), "▏", palette.peak)
-                win.addstr(y_r, min(2 + max(pk_r - 1, 0), w + 1), "▏", palette.peak)
+                marker_l = int(min(2 + max(pk_l - 1, 0), w + 1))
+                marker_r = int(min(2 + max(pk_r - 1, 0), w + 1))
+                win.addstr(y_l, marker_l, "▏", palette.peak)
+                win.addstr(y_r, marker_r, "▏", palette.peak)
         except curses.error:
             pass
 

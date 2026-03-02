@@ -1,6 +1,6 @@
 import tomllib
 
-from vfd.config import generate_default_config
+from phosphor.config import generate_default_config
 
 
 def test_generate_config_contains_comments():
@@ -17,4 +17,4 @@ def test_generate_config_is_valid_toml(tmp_path):
     path.write_text(content, encoding="utf-8")
     with open(path, "rb") as f:
         data = tomllib.load(f)
-    assert data["display"]["color"] == "green"
+    assert data["display"]["color"] == "hifi"

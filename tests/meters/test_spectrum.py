@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from vfd.meters.spectrum import SpectrumMeter
+from phosphor.meters.spectrum import SpectrumMeter
 
 
 def make_mock_window(rows=30, cols=80):
@@ -24,4 +24,4 @@ def test_decay_smooths_values():
     bands_low = [-60.0] * 64
     meter.render(win, bands_high, palette=palette)
     meter.render(win, bands_low, palette=palette)
-    assert all(-60.0 < v < 0.0 for v in meter._levels)
+    assert all(-60.0 < v < 0.0 for v in meter._levels_l)

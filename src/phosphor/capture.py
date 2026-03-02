@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import sounddevice as sd
 
-from vfd.ring_buffer import RingBuffer
+from phosphor.ring_buffer import RingBuffer
 
 
 class DeviceNotFoundError(Exception):
@@ -27,8 +27,8 @@ class AudioCapture:
         if device_idx is None:
             raise DeviceNotFoundError(
                 f"Device '{device_name}' not found.\n"
-                "Run `vfd --list-devices` to see available devices.\n"
-                "Run `vfd --setup` for setup instructions."
+                "Run `phosphor --list-devices` to see available devices.\n"
+                "Run `phosphor --setup` for setup instructions."
             )
 
         self._stream = sd.InputStream(

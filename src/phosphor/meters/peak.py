@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import curses
 
-from vfd.vfd_colors import hotter_attr, meter_level_attr, meter_zone_attr
+from phosphor.vfd_colors import hotter_attr, meter_level_attr, meter_zone_attr
 
 PEAK_HOLD_FRAMES = 60
 DECAY_RATE = 1.5
 PARTICLE_DIM = "⣀"
-PARTICLE_MID = "⣤"
+PARTICLE_MID = "⣶"
 PARTICLE_HOT = "⣿"
 
 
@@ -45,7 +45,7 @@ class PeakMeter:
         h = max(rows - 2, 1)
         filled_l = self._norm(db_l, h)
         filled_r = self._norm(db_r, h)
-        hold = self._norm(self._held_peak, h)
+        hold = int(round(self._norm(self._held_peak, h)))
         x_l = max(0, cols // 3)
         x_r = min(cols - 1, max(x_l + 2, 2 * cols // 3))
         try:
@@ -73,7 +73,7 @@ class PeakMeter:
         w = max(cols - 6, 1)
         filled_l = self._norm(db_l, w)
         filled_r = self._norm(db_r, w)
-        hold = self._norm(self._held_peak, w)
+        hold = int(round(self._norm(self._held_peak, w)))
         y_l = max(0, rows // 2 - 1)
         y_r = min(rows - 1, y_l + 1)
         try:
@@ -92,7 +92,7 @@ class PeakMeter:
                 glyph_r = PARTICLE_HOT if attr_r in (palette.warn, palette.clip, palette.bright) else PARTICLE_MID if attr_r == palette.mid else PARTICLE_DIM
                 win.addstr(y_r, 2 + i, glyph_r if lit_r else " ", attr_r)
             if self._peak_hold:
-                hold_x = 2 + min(max(hold - 1, 0), w - 1)
+                hold_x = int(2 + min(max(hold - 1, 0), w - 1))
                 win.addstr(y_l, hold_x, "▏", palette.peak)
                 win.addstr(y_r, hold_x, "▏", palette.peak)
         except curses.error:
@@ -115,9 +115,9 @@ class PeakMeter:
                 lit_r = db_r >= th
                 attr_l = hotter_attr(meter_zone_attr(i, len(thresholds), palette), level_attr_l, palette) if lit_l else palette.bg
                 attr_r = hotter_attr(meter_zone_attr(i, len(thresholds), palette), level_attr_r, palette) if lit_r else palette.bg
-                glyph_l = PARTICLE_HOT if attr_l in (palette.warn, palette.clip, palette.bright) else PARTICLE_MID if attr_l == palette.mid else PARTICLE_DIM
-                glyph_r = PARTICLE_HOT if attr_r in (palette.warn, palette.clip, palette.bright) else PARTICLE_MID if attr_r == palette.mid else PARTICLE_DIM
-                win.addstr(y_l, x, (glyph_l if lit_l else " ") * seg_w, attr_l)
-                win.addstr(y_r, x, (glyph_r if lit_r else " ") * seg_w, attr_r)
+                glyph_l = "█" if lit_l else " "
+                glyph_r = "█" if lit_r else " "
+                win.addstr(y_l, x, glyph_l * seg_w, attr_l)
+                win.addstr(y_r, x, glyph_r * seg_w, attr_r)
         except curses.error:
             pass

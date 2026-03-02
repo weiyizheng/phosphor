@@ -6,9 +6,9 @@ from typing import Optional, Union
 import tomllib
 import warnings
 
-DEFAULT_CONFIG_PATH = Path.home() / ".config" / "vfd" / "config.toml"
+DEFAULT_CONFIG_PATH = Path.home() / ".config" / "phosphor" / "config.toml"
 
-VALID_COLORS = ("green", "amber", "blue", "white")
+VALID_COLORS = ("green", "amber", "blue", "white", "btop", "hifi")
 VALID_BANDS = (32, 64, 128, "auto")
 VALID_LAYOUTS = ("classic", "dashboard")
 VALID_VU_STYLES = ("segmented", "bar", "needle")
@@ -25,7 +25,7 @@ class ConfigValidationError(ValueError):
 @dataclass
 class Config:
     # Display
-    color: str = "green"
+    color: str = "hifi"
     bands: Union[int, str] = 64
     fps: int = 60
     stereo: bool = True
@@ -124,16 +124,16 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
 def generate_default_config() -> str:
     """Generate a fully-commented default configuration file."""
     return """\
-# vfd — VFD Audio Spectrum Analyzer Configuration
+# phosphor — VFD Audio Spectrum Analyzer Configuration
 # All values shown are defaults. Uncomment and modify to customize.
 # CLI flags always override config file values.
-# Run `vfd --help` for available flags.
+# Run `phosphor --help` for available flags.
 
 [display]
 
 # Controls the phosphor color of the VFD display.
-# green, amber, blue, white
-color = "green"
+# green, amber, blue, white, btop, hifi
+color = "hifi"
 
 # Number of frequency bands in the spectrum analyzer.
 # 32, 64, 128, or "auto"

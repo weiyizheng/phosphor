@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from vfd.config import Config, ConfigValidationError, load_config, validate_config
+from phosphor.config import Config, ConfigValidationError, load_config, validate_config
 
 
 def test_default_config_values():
     config = Config()
-    assert config.color == "green"
+    assert config.color == "hifi"
     assert config.bands == 64
     assert config.fps == 60
     assert config.stereo is True
@@ -35,7 +35,7 @@ def test_load_config_from_toml(tmp_path: Path):
 
 def test_load_config_missing_file(tmp_path: Path):
     config = load_config(tmp_path / "missing.toml")
-    assert config.color == "green"
+    assert config.color == "hifi"
 
 
 def test_config_merge_flags():
@@ -82,4 +82,4 @@ def test_corrupt_toml_warns_and_falls_back(tmp_path: Path):
     toml_file.write_text("[display\ncolor = 'green'\n", encoding="utf-8")
     with pytest.warns(RuntimeWarning, match="invalid TOML"):
         cfg = load_config(toml_file)
-    assert cfg.color == "green"
+    assert cfg.color == "hifi"

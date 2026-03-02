@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import curses
 
-from vfd.vfd_colors import hotter_attr, meter_level_attr, meter_zone_attr
+from phosphor.vfd_colors import hotter_attr, meter_level_attr, meter_zone_attr
 
 DECAY_RATE = 2.0
 PARTICLE_DIM = "⣀"
-PARTICLE_MID = "⣤"
+PARTICLE_MID = "⣶"
 PARTICLE_HOT = "⣿"
 
 

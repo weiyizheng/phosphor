@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from vfd.layouts import build_layout
+from phosphor.layouts import build_layout
 
 
 def test_classic_layout_returns_two_panes():
