@@ -43,7 +43,6 @@ It is auto-created on first run.
 
 ## CLI Flags
 
-- `--color [green|amber|blue|white]`
 - `--color [green|amber|blue|white|btop|hifi]`
 - `--bands [32|64|128|auto]`
 - `--fps INT`

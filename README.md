@@ -21,22 +21,32 @@ A real-time VFD (Vacuum Fluorescent Display) audio analyzer for your terminal. C
 ## Requirements
 
 - macOS 12+, Intel or Apple Silicon
-- Python 3.11+
+- Python 3.9+
 - [BlackHole 2ch](https://existential.audio/blackhole/) (free virtual audio driver)
 
 ## Install
 
 ```bash
-pipx install phosphor
+pipx install "git+https://github.com/weiyizheng/phosphor.git"
 ```
 
-Or for development:
+Install from local clone:
 
 ```bash
 git clone https://github.com/weiyizheng/phosphor
 cd phosphor
-pip install -e .
+pipx install .
 ```
+
+For development:
+
+```bash
+git clone https://github.com/weiyizheng/phosphor
+cd phosphor
+pip install -e ".[dev]"
+```
+
+`pipx install phosphor` will work only after the package is published to PyPI.
 
 ## Setup
 
@@ -124,6 +134,8 @@ phosphor --layout dashboard  # classic | dashboard
 # View a single meter fullscreen
 phosphor --mode spectrum
 phosphor --mode vu
+phosphor --mode peak
+phosphor --mode rms
 phosphor --mode lufs
 
 # Limit framerate (saves CPU)
